@@ -1,0 +1,18 @@
+---
+- hosts: localhost
+  vars:
+    letsencrypt:
+      webmaster_email: "yourmail@example.com"
+    sites:
+      - name: example.com
+        template: nginx-site-reverse-proxy-ssl.conf
+        upstream_server: 127.0.0.1:8000
+        certificate: example.com
+        include_www_alias: true
+        include_acme_challenge: true
+        generate_letsencrypt_cert: true
+        proxy: true
+  roles:
+    - { role: nginx, become: true }
+    - { role: certbot, become: true }
+    - { role: nginx-sites, become: true }

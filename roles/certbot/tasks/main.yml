@@ -1,0 +1,28 @@
+---
+# tasks file for certbot
+
+- name: Add certbot repo
+  apt_repository:
+    repo: 'ppa:certbot/certbot'
+
+- name: Install certbot
+  apt:
+    name: python-certbot-nginx
+    state: latest
+
+- name: Add the certbot cronjob
+  cron:
+    name: "renew certs"
+    hour: "1"
+    weekday: "1"
+    job: "certbot renew --quiet"
+
+- name: Ensure /var/www/letsencrypt dir is there
+  file:
+    path: /var/www/letsencrypt
+    state: directory
+
+- name: Ensure /var/www/letsencrypt/.well-known/acme-challenge dir is there
+  file:
+    path: /var/www/letsencrypt/.well-known/acme-challenge
+    state: directory

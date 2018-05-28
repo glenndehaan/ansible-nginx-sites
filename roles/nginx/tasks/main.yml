@@ -1,0 +1,37 @@
+---
+# tasks file for nginx
+- name: Install Nginx
+  become: true
+  apt: name=nginx state=latest
+  notify:
+    - restart nginx
+
+- name: Save the nginx.conf
+  template:
+    src: nginx.conf
+    dest: /etc/nginx/nginx.conf
+
+- name: Ensure /etc/nginx/ssl dir is there
+  file:
+    path: /etc/nginx/ssl
+    state: directory
+
+- name: Generate dhparams
+  command: openssl dhparam -out /etc/nginx/ssl/dhparams.pem 2048
+  args:
+    creates: /etc/nginx/ssl/dhparams.pem
+
+- name: Ensure /etc/nginx/snippets dir is there
+  file:
+    path: /etc/nginx/snippets
+    state: directory
+
+- name: Save the letsencrypt snippet
+  template:
+    src: letsencrypt-acme-challenge.conf
+    dest: /etc/nginx/snippets/letsencrypt-acme-challenge.conf
+
+- name: Restart Nginx
+  service:
+    name: nginx
+    state: restarted

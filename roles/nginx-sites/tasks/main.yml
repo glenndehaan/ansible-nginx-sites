@@ -1,0 +1,95 @@
+---
+# tasks file for nginx-sites
+
+- name: Ensure /var/www dir is there
+  file:
+    path: /var/www
+    state: directory
+    mode: 0755
+
+- name: Ensure /var/www/{{ item.name }} dir is there
+  file:
+    path: /var/www/{{ item.name }}
+    state: directory
+    mode: 0755
+  when: item.proxy == false
+  with_items:
+    - "{{ sites }}"
+
+- name: Check if /var/www/{{ item.name }}/public dir is there
+  stat:
+    path: /var/www/{{ item.name }}/public
+  register: folder_created
+  when: item.proxy == false
+  with_items:
+    - "{{ sites }}"
+
+- name: Ensure /var/www/{{ item.name }}/public dir is there
+  file:
+    path: /var/www/{{ item.name }}/public
+    state: directory
+    mode: 0755
+  when: item.proxy == false
+  with_items:
+    - "{{ sites }}"
+
+- name: Save default index.html
+  template:
+    src: default/index.html
+    dest: /var/www/{{ item.item.name }}/public/index.html
+  when: item.stat is defined and item.stat.exists == false and item.item.proxy == false
+  with_items:
+    - "{{ folder_created.results }}"
+
+- name: Save nginx site config to sites-available
+  template:
+    src: "{{ item.template }}"
+    dest: /etc/nginx/sites-available/{{ item.name }}.conf
+  with_items:
+    - "{{ sites }}"
+
+- name: Link nginx site config from sites-available to sites enabled
+  file:
+    src: /etc/nginx/sites-available/{{ item.name }}.conf
+    dest: /etc/nginx/sites-enabled/{{ item.name }}.conf
+    state: link
+  with_items:
+    - "{{ sites }}"
+
+- name: Check if certificate already exists.
+  stat:
+    path: /etc/letsencrypt/live/{{ item.name }}/cert.pem
+  register: letsencrypt_cert
+  with_items:
+    - "{{ sites }}"
+
+- name: Override Nginx config for letsencrypt cert request
+  template:
+    src: nginx-ssl-temp.conf
+    dest: /etc/nginx/sites-available/{{ item.item.name }}.conf
+  when: item.item.generate_letsencrypt_cert and item.stat is defined and not item.stat.exists
+  with_items:
+    - "{{ letsencrypt_cert.results }}"
+
+- name: Restart Nginx
+  service:
+    name: nginx
+    state: restarted
+
+- name: Generate new certificate
+  shell: "certbot certonly --webroot --agree-tos --no-eff-email --email {{ letsencrypt.webmaster_email }} -w /var/www/letsencrypt {% if item.item.include_www_alias %}-d www.{{ item.item.name }}{% endif %} -d {{ item.item.name }}"
+  when: item.item.generate_letsencrypt_cert and item.stat is defined and not item.stat.exists
+  with_items:
+    - "{{ letsencrypt_cert.results }}"
+
+- name: Revert Nginx config for letsencrypt cert request
+  template:
+    src: "{{ item.template }}"
+    dest: /etc/nginx/sites-available/{{ item.name }}.conf
+  with_items:
+    - "{{ sites }}"
+
+- name: Restart Nginx
+  service:
+    name: nginx
+    state: restarted
